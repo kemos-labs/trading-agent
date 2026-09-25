@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local bulk / unrelated
+thunderbird-154.0/
+thunderbird-*.tar.xz
+strategies/
+library/raw/
+*.vcf
+
+# Regenerable caches
+data/fresh/raw/
+.ipynb_checkpoints/
+.pi/subagents/

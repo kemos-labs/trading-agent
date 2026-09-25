@@ -1,0 +1,57 @@
+{
+  "capital": 1000000.0,
+  "ptc": 0.001,
+  "positions": {
+    "SPY:dual_sma_9_45": {
+      "symbol": "SPY",
+      "strategy": "dual_sma_9_45",
+      "target": 0.0,
+      "exposure": 0.0,
+      "entry_price": null,
+      "bar_date": "2024-12-31"
+    },
+    "SPY:vol_mom_252_60_10pct": {
+      "symbol": "SPY",
+      "strategy": "vol_mom_252_60_10pct",
+      "target": 0.7857442932815957,
+      "exposure": 0.7857442932815957,
+      "entry_price": 576.2152709960938,
+      "bar_date": "2024-12-31"
+    },
+    "QQQ:dual_sma_9_45": {
+      "symbol": "QQQ",
+      "strategy": "dual_sma_9_45",
+      "target": 1.0,
+      "exposure": 1.0,
+      "entry_price": 507.4521179199219,
+      "bar_date": "2024-12-31"
+    },
+    "QQQ:vol_mom_252_60_10pct": {
+      "symbol": "QQQ",
+      "strategy": "vol_mom_252_60_10pct",
+      "target": 0.5748330012478907,
+      "exposure": 0.5748330012478907,
+      "entry_price": 507.4521179199219,
+      "bar_date": "2024-12-31"
+    },
+    "TLT:dual_sma_9_45": {
+      "symbol": "TLT",
+      "strategy": "dual_sma_9_45",
+      "target": 0.0,
+      "exposure": 0.0,
+      "entry_price": null,
+      "bar_date": "2024-12-31"
+    },
+    "TLT:vol_mom_252_60_10pct": {
+      "symbol": "TLT",
+      "strategy": "vol_mom_252_60_10pct",
+      "target": 0.0,
+      "exposure": 0.0,
+      "entry_price": null,
+      "bar_date": "2024-12-31"
+    }
+  },
+  "equity": 999606.5704509119,
+  "peak": 1000000.0,
+  "last_update": "2026-08-31T01:05:13.745285+00:00"
+}

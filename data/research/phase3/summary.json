@@ -1,0 +1,61 @@
+{
+  "protocol": {
+    "symbols": [
+      "SPY",
+      "QQQ",
+      "TLT"
+    ],
+    "start": "2010-01-01",
+    "end": "2025-01-01",
+    "dev_end": "2018-12-31",
+    "oos_start": "2019-01-01",
+    "ptc": 0.001
+  },
+  "verdicts": {
+    "dual_sma_9_45": "PASS",
+    "donchian_50_20": "REJECT",
+    "vol_mom_252_60_10pct": "PASS"
+  },
+  "portfolio_oos": {
+    "dual_sma_9_45": {
+      "total_return": 0.6846925250289826,
+      "cagr": 0.09094648172993347,
+      "ann_vol": 0.09583948270063651,
+      "sharpe": 0.9563644008378717,
+      "max_drawdown": -0.12255719495391248,
+      "dd_duration": 572.0,
+      "mar": 0.7420737865625417,
+      "label": "dual_sma_9_45"
+    },
+    "donchian_50_20": {
+      "total_return": 0.4052452756392029,
+      "cagr": 0.05841983985565968,
+      "ann_vol": 0.07665261169471976,
+      "sharpe": 0.7792004079589715,
+      "max_drawdown": -0.1850925250881168,
+      "dd_duration": 637.0,
+      "mar": 0.3156250628049286,
+      "label": "donchian_50_20"
+    },
+    "vol_mom_252_60_10pct": {
+      "total_return": 0.39779949492612365,
+      "cagr": 0.05748184538530099,
+      "ann_vol": 0.062428128723587765,
+      "sharpe": 0.9266130432335833,
+      "max_drawdown": -0.0918712730635145,
+      "dd_duration": 523.0,
+      "mar": 0.625678119705181,
+      "label": "vol_mom_252_60_10pct"
+    }
+  },
+  "buy_hold_oos": {
+    "total_return": 1.0761959572467048,
+    "cagr": 0.12966089182317297,
+    "ann_vol": 0.1478973867407812,
+    "sharpe": 0.8985825379404333,
+    "max_drawdown": -0.3005862128489767,
+    "dd_duration": 618.0,
+    "mar": 0.43136007667896065,
+    "label": "buy_hold"
+  }
+}
