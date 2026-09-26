@@ -1333,3 +1333,24 @@ deferred until tooling exists.
   - Dashboard footer → v0.8.0 / 44 skills / "+433 fresh"; served page re-verified 200.
 - Next: CPCV walk-forward on the extended window with embargo + HLZ hurdle before any verdict revisit; nightly refresh via pull_fresh (TTL makes repeats free).
 - Blockers: none. AV budget: 3 used today (ours); Massive 3; Finnhub 6 — all within headroom.
+
+## 2026-09-25 — GitHub push + Pages deploy
+
+- Did (per "github url link app, upload and deploy"):
+  - `.gitignore` (venv, thunderbird, nested FMZ repo, raw book PDFs, agent dotdirs, fresh raw cache, stray vcf); secret scan clean (no keys in repo — runtime TERMINAL_ENV only).
+  - `git init -b main` + commit ff3a403 (1,306 files, ~14 MB object store); `gh repo create trading-agent --public` → https://github.com/kemos-labs/trading-agent; pushed main.
+  - Enabled GitHub Pages (legacy, main, /) → app live at https://kemos-labs.github.io/trading-agent/dashboard/index.html (200, 78 KB; markers v0.8.0/44 skills/attribution verified in deployed HTML; journal.csv + attribution report links 200).
+- Next: point README at the live URL; consider a root index redirecting to /dashboard/.
+- Blockers: none.
+
+## 2026-09-26 — Dashboard rebuilt: live data + real help (replacing the static mock)
+
+- Did (per "the UI/UX is slop and it shows nothing from the API keys — redo it"):
+  - Root cause of the old page: every number was hand-typed into the HTML, the chart plotted a hand-copied array, and the trading-terminal-pro API keys were never wired to the UI at all.
+  - New `research/build_dashboard_data.py` is the single source: reads phase3 summary + backtest legs, fresh API pulls, paper journal/state, provider quota ledger, attribution, and *runs the test suite at build time* → `dashboard/data/dashboard.json` (88 KB). UI renders that JSON only; no inline data.
+  - `dashboard/index.html` rewritten as a dark control room: 6 live KPIs, OOS equity curves with per-strategy isolation, live market data cards (close, 1d, 20d vol, 454 fresh bars, 60-bar sparkline, pinned-base SHA), provider budget bars, strategy lab with the PASS rule spelled out, fresh-window (2025+) table, 12-leg cost attribution with thin-edge flags, paper book, engine health, data lineage, glossary, and an alert strip that fires on stale feed / thin edges / broken guard / failing tests / halt.
+  - Help layer: 18 contextual `?` tooltips + a "How to read this" drawer (what this is, the one-bar-lag rule, PASS ≠ tradable, why keys live in another repo, glossary, refresh commands). Tooltips had a real bug (inherited uppercase from label) — fixed.
+  - Two genuine data bugs found by rendering: the chart plotted raw daily net returns instead of compounded equity, and the curve x-axis included in-sample years. Now OOS-only, compounded to growth-of-one, and it reconciles exactly with the verdict table (1.685/1.405/1.398/2.076 = +68.47/+40.52/+39.78/+107.62%).
+  - Verified headless (playwright): 6 KPIs, 3 feed cards, 3 quota rows, 4 lab rows, 4 fresh rows, 12 attribution rows, 6 paper rows, 18 hints, help drawer opens, curve filter isolates one series, **0 console errors**. Fails loudly with the regen command if the JSON is missing.
+- Next: wire a scheduled refresh (cron → pull_fresh + build_dashboard_data) if you want it self-updating; otherwise the two copy buttons are the manual loop.
+- Blockers: none.

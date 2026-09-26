@@ -15,3 +15,17 @@ library/raw/
 data/fresh/raw/
 .ipynb_checkpoints/
 .pi/subagents/
+
+# Agent tooling state (other harnesses)
+.commandcode/
+.freebuff/
+.agents/
+.claude/
+.opencode/
+.qwen/
+.kimchi/
+.junie/
+.vibe/
+.hermes/
+.superpowers/
+.pi/
