@@ -96,3 +96,30 @@ def vol_target_weight(returns: pd.Series, target_vol: float,
 ## source
 Sinclair, *Volatility Trading* 2nd ed., ch8 (Money Management — Kelly,
 fractional Kelly, vol targeting, and the two-traders sizing example).
+
+---
+
+## addendum — Kelly 1956 primary source (corpus)
+
+The information-theoretic origin (corpus path
+`library/raw/drive-download-20260925T215026Z-1-001/universalportfolios/A New Interpretation of Information Rate Kelly Criterion (UniversalPortfolios_Kelly_1956.pdf).md`;
+spine block: optimization; mechanism: **information**):
+
+- **Growth = information.** Under fair odds the max exponential growth
+  rate equals the channel's mutual information: `G_max = I(X;Y)` — the
+  signal's information rate is the growth rate it can monetize.
+- **Ignore odds for proportions (no track take).** Optimal stakes equal
+  posteriors `a(s|r) = q(s|r)`; odds shift the *level* of G, not the
+  argmax. Miscalibrated odds are a free lunch for the growth-optimal
+  bettor.
+- **Track take → withholding + corner solutions.** With a take
+  (`Σ 1/α_s < 1`), hold cash `b > 0` and bet only where `p(s)α_s`
+  clears a threshold: sort by `p(s)α_s` descending, `F_t =
+  (1−p_t)/(1−σ_t)`, set `b = min positive F_t`, `a(s) =
+  max(p(s) − b/α_s, 0)`. Negative-edge bets can appear in the optimum
+  — edge is evaluated jointly with the cash decision, not horse-by-horse.
+- **E[V] maximization is ruinous** under repeated multiplicative bets
+  (bet-everything → almost-sure ruin while E[V] grows); maximize the
+  almost-sure log-growth path, not the expectation.
+- Open in 1956: optimality among *adaptive* policies — later answered by
+  Breiman/Thorp and the universal-portfolio literature (Cover).

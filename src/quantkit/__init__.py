@@ -39,7 +39,7 @@ xsec : cross-sectional formation/decile/WML/overlapping sorts + residual
     / ``skills/residual-reversal`` / ``skills/factor-zoo-hurdle``).
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 from quantkit import backtest, data_loader, execution, factors, features, fresh, live, options, paper, portfolio, risk, sizing, strategies, tsa, validation, xsec
 from quantkit.backtest import (  # noqa: F401

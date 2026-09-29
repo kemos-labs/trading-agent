@@ -1354,3 +1354,82 @@ deferred until tooling exists.
   - Verified headless (playwright): 6 KPIs, 3 feed cards, 3 quota rows, 4 lab rows, 4 fresh rows, 12 attribution rows, 6 paper rows, 18 hints, help drawer opens, curve filter isolates one series, **0 console errors**. Fails loudly with the regen command if the JSON is missing.
 - Next: wire a scheduled refresh (cron → pull_fresh + build_dashboard_data) if you want it self-updating; otherwise the two copy buttons are the manual loop.
 - Blockers: none.
+
+## 2026-09-26 — Phase 7 maintenance check (resting)
+
+- Did (per "continue"; Phase 7 ACTIVE resting, Phase 8 DONE — maintenance only):
+  - Startup reads: MEMORY.md, ROADMAP.md, PROGRESS.md tail, skills/INDEX.md. No corpus phase active, so no bulk corpus loads.
+  - Health gates: 190/190 unittest pass, `research/verify_formulas.py` ALL CHECKS PASS (18 checks), `research/run_phase3.py --offline` verdicts unchanged (dual_sma PASS, donchian REJECT, vol_mom PASS; SHAs 79d9cd/f584d0/cd13f1 pinned).
+  - State check: `dashboard/data/dashboard.json` fresh (built 2026-09-26T13:31Z, tests 190 OK, 454 fresh bars/symbol → 2026-09-24); paper journal/state intact (offline 2024-12-31 replay, `paper_only` guard, idempotent); no new books in `library/raw/` (corpus files only).
+  - Reverted timestamp-only churn from the verification reruns (`maintenance-2026-08-31.md`, `phase3-results.md`) — tree clean, no functional change.
+- Next: Phase 7 resting — optional on your call: (a) scheduled refresh loop (cron → pull_fresh + build_dashboard_data); (b) CPCV re-run of PASS legs with xsec signals behind embargo + HLZ hurdle; (c) sample remaining corpus notes per priority index. No code touched.
+- Blockers: none.
+
+## 2026-09-26 — Scheduled refresh loop wired (Phase 7)
+
+- Did (per "continue from last order" — the dashboard rebuild's open Next):
+  - New `research/refresh_dashboard.sh` (executable): pull-fresh (skipped fail-closed when TERMINAL_ENV unset or `--no-pull`; TTL cache makes repeats free) → rebuild `dashboard/data/dashboard.json` (runs 190-test suite at build time) → one-line verify (tests, equity, guard, halt, quota, data-through date). Cron line + manual commands in the header.
+  - Ran `refresh_dashboard.sh --no-pull`: 190 tests OK, paper equity 999,607 (2024-12-31), guard_ok=True, halted=False, quota massive 3/200 / finnhub 6/1000 / AV 3/25, data through 2026-09-24. Zero provider calls burned (keys runtime-only, TERMINAL_ENV unset here).
+- Next: optional cron install (`30 22 * * 1-5` weekdays after close); CPCV re-run of PASS legs with embargo + HLZ hurdle still open; ~400 corpus notes remain per priority index.
+- Blockers: none.
+
+## 2026-09-26 — Phase 9 live execution layer (impact-aware costs) + plan
+
+- Did (per "read plan and continue"; plan `plans/phase9-live-execution.md` written first):
+  - **T1 cost model**: `execution.impact_almgren(delta, adv, sigma, horizon_days, outstanding, ptc, ...)` — flat floor + Almgren realized J (reuses T2 closed form, no new math), returns bps; fail-closed on non-positive inputs and >25% ADV (override flag). 6 tests (hand value 38.33 bps, floor additive, sign symmetry, schedule monotonic, fail-closed).
+  - **T2 PaperTrader**: `impact_on` / `horizon_days` / `outstanding` kwargs; per-bar ADV from store volume (20d mean), sigma from 20d returns; journal gains `impact_cost` column (sums into `cost`, guard note unchanged); fail-closed when store lacks volume or outstanding missing. CLI `paper_trade.py --impact-on --outstanding`. 3 tests. Verified: impact run costs 297.76/333.66/262.70 vs flat 130.96/166.67/95.81 on the same 2024-12-31 bar.
+  - **T3 BacktestEngine**: `execution_cost_fn(delta, bar)` hook, additive to flat ptc/ffc, default None (Phase-3 SHAs unchanged). 3 tests (hook adds cost, disabled by default, receives delta+bar).
+  - **T4 dashboard + docs**: `attribute.py` journal check splits flat vs impact (proportionality on flat component only); `build_dashboard_data` paper payload gains `impact_cost`/`impact_on`; dashboard cost-model row shows impact layer when active; verify check 19 (impact layer: realized 38.33 bps, floor 48.33, sell==buy, schedule 22.29<38.33). quantkit 0.8.0→0.9.0; dashboard genLine shows version.
+  - Gates: **201/201 tests** (190 + 11 new), verify_formulas 19 checks PASS, `run_phase3 --offline` verdicts unchanged (SHAs pinned), `paper_trade --offline --dry-run` idempotent, `refresh_dashboard.sh --no-pull` green (201 OK, guard intact, quota 3/200 / 6/1000 / 3/25).
+- Next: cron install for refresh loop; CPCV re-run of PASS legs with embargo + HLZ hurdle; sample remaining corpus notes per priority index.
+- Blockers: none.
+
+## 2026-09-26 — Review pass: double-charge bug fixed, journal schema migrated, flaky test seeded
+
+- Did (per "review"; full diff review of the Phase 9 changes):
+  - **Bug fix (double-charged floor)**: `paper.py` charged the flat 10 bps floor twice — once directly and again inside `impact_almgren(ptc=self.ptc)`. Now passes `ptc=0.0` so the impact layer is purely additive. Verified: SPY vol_mom cost 297.76 → 131.09 (flat 130.96 + impact 0.13) on the 2024-12-31 bar.
+  - **Bug fix (journal schema)**: `_journal_path` wrote a 12-col header while impact rows have 13 fields — appending would misalign. Now always writes the `impact_cost` column and migrates legacy journals in place (insert after `cost`, old rows get 0.0). Migrated `data/paper/journal.csv` (12 rows, guard intact); restored the 6 dry-run rows my verification had appended.
+  - **Robustness**: NaN ADV/σ now caught by the fail-closed guard (NaN <= 0 is False); `build_dashboard_data` reads the version from `quantkit.__version__` instead of a hardcoded string.
+  - **Pre-existing flake fixed**: `tests/test_factors.py::test_no_signal` used unseeded `np.random.randn` — with 5 assets/period the Spearman IC mean can exceed 0.5 by chance (failed ~1 in 5 runs). Seeded with `default_rng(42)`; 10/10 stable.
+  - Gates re-run: 201/201 tests OK, verify_formulas 19 PASS, run_phase3 verdicts/SHAs unchanged, attribute PASS, refresh_dashboard.sh green.
+- Next: cron install; CPCV re-run of PASS legs with embargo + HLZ hurdle; remaining corpus sampling.
+- Blockers: none.
+
+## 2026-09-27 — Full gate run + app served
+
+- Did (per "run it" + "continue"):
+  - Gates: 201/201 tests OK, verify_formulas 19 checks PASS, run_phase3 --offline verdicts unchanged (dual_sma PASS, donchian REJECT, vol_mom PASS; SHAs pinned), paper_trade --offline --dry-run idempotent, refresh_dashboard.sh --no-pull green.
+  - Served: `python -m http.server 8787` (PID 59040) — dashboard/index.html, journal.csv, dashboard.json, attribution report all 200. JSON verified: version 0.9.0, tests 201 OK, paper equity 999,607 (2024-12-31), guard intact, impact_on False (flat legacy journal), quota 0/200 + 0/1000 + 0/25 (new day 2026-09-27, daily reset).
+- Next: cron install for the refresh loop; CPCV re-run of PASS legs with embargo + HLZ hurdle; remaining corpus sampling.
+- Blockers: none.
+
+## 2026-09-27 — CPCV re-run of PASS legs (embargo + HLZ hurdle)
+
+- Did (per "continue"; the long-flagged validation gap):
+  - New `research/cpcv_rerun.py`: CPCV (N=6, k=2 -> 15 OOS paths) on the pinned 2010-2024 bars; label horizon = next-bar return; embargo = 5 bars (logged); equal-weight SPY/QQQ/TLT, 10 bps, one-bar lag. Fixed rules (no fitted params) so CPCV measures Sharpe stability, not selection. PSR/DSR from quantkit.validation; HLZ t>=3.0 hurdle; PLUS a paired per-path comparison vs buy&hold (the honest version of the Phase 3 question).
+  - **Result** (`knowledge/strategy-research/cpcv-rerun-2026-09-27.md`): all three rules are STABLE (t >= 9.9, 15/15 positive) but NONE beats buy&hold across the 15 paths — paired pos 3/15 (dual_sma), 3/15 (vol_mom), 1/15 (donchian), paired t all < -3.8. The 2019+ holdout PASS was regime-dependent (BH mean OOS SR 1.11 vs 0.81/0.85). **CPCV downgrades both PASS legs: stable, positive, but no edge over the baseline net of costs across the full window.** Phase 3 verdicts/SHAs untouched (read-only).
+  - Gates: 201/201 tests OK, run_phase3 verdicts unchanged.
+- Next: surface the CPCV downgrade on the dashboard (alert strip + lab note); cron install; remaining corpus sampling.
+- Blockers: none. No rule currently shows a paired OOS edge — paper trading stays diagnostic-only.
+
+## 2026-09-29 — CPCV surfaced on dashboard; full gate run
+
+- Did (per "continue"; finishing the CPCV dashboard wiring):
+  - `build_dashboard_data.py` gains `cpcv_summary()` (imports `research/cpcv_rerun.py`, runs the 15-path eval at build time) → `dashboard.json` now carries a `cpcv` block (mean SR, t-stat, pos paths, paired vs BH t, beats-BH count per rule + headline).
+  - `dashboard/index.html` gains a **CPCV re-run — 15 OOS paths** section (table + note) and an alert-strip warning: "no rule beats buy&hold on more than 3/15 OOS paths — treat all legs as diagnostic-only."
+  - Verified served page: cpcvBody/renderCpcv present (4 markers), JSON has 3 CPCV rows, version 0.9.0.
+  - Full gates: 201/201 tests OK, verify_formulas 19 PASS, run_phase3 verdicts unchanged (SHAs pinned), paper idempotent, refresh_dashboard.sh green.
+- Next: cron install for the refresh loop; remaining corpus sampling (~400 notes per priority index).
+- Blockers: none. Standing conclusion: no rule shows a paired OOS edge — paper trading stays diagnostic-only.
+
+## 2026-09-29 — Corpus priority-index sampling (5 notes → 2 skills + 2 fns + 1 addendum)
+
+- Did (per "continue"; cron refresh loop installed: `30 22 * * 1-5` weekdays after close):
+  - Read the 5 unread formula-dense notes from the priority index (≤5/turn per AGENTS.md): Kelly 1956, Baldacci-Benveniste-Ritter 2022, Engle-Ferstenberg 2006, Novy-Marx 2012, Gatheral vol surface.
+  - **New skill `optimal-turnover-liquidity`** (BBR 2022): optimal turnover `γ√(φ/γ+1)`, steady-state IR `ν/(2σ)·√(γ/(φ(φ+2γ)))`, residual √N. Code: `portfolio.optimal_turnover` + `portfolio.steady_state_ir` (2 tests; verify check 20 vs paper desk example 17.3%/day). Mechanism: liquidity + information.
+  - **New skill `execution-risk`** (Engle-Ferstenberg 2006): single-λ unification, TC variance + Cov(TC,gain) in ex-ante SR, front-loading, futures hedge of unfinished book, liquidity risk = ES of liquidation. Code: `execution.ef_midpoint` three-period closed form (3 tests; verify check 21: even pace 5.0, front-load 20/3). Mechanism: liquidity.
+  - **Extended `kelly-position-sizing`** with the Kelly 1956 primary-source addendum: G = I(X;Y) under fair odds, track-take withholding (F_t threshold algorithm), ignore-odds-for-proportions, E[V]-maximization ruin. Corpus path + spine + mechanism recorded.
+  - **Skipped** (already covered): Novy-Marx 2012 (promoted as `intermediate-momentum` in Phase 8 T1), Gatheral (book distillation, covered by options-pricing/volatility-trading).
+  - Gates: 206/206 tests OK (201 + 5 new), verify_formulas 21 checks PASS, run_phase3 verdicts/SHAs unchanged. skills/INDEX.md updated (2 new entries + kelly addendum).
+- Next: remaining corpus sampling (~395 notes); consider wiring optimal-turnover into the dashboard cost section.
+- Blockers: none.

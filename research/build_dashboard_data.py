@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from quantkit.backtest import vectorized_backtest
 from quantkit.data_loader import compute_returns
+from quantkit import __version__ as QK_VERSION
 from quantkit.fresh import ALPHAVANTAGE_FREE_DAILY, FINNHUB_SOFT_DAILY, MASSIVE_FREE_DAILY
 from quantkit.strategies import (
     donchian_breakout_position,
@@ -32,6 +33,7 @@ from quantkit.strategies import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "research"))
 P3 = ROOT / "data" / "research" / "phase3"
 FRESH = ROOT / "data" / "research" / "fresh"
 PAPER = ROOT / "data" / "paper"
@@ -212,15 +214,38 @@ def paper_book() -> dict:
            for p in state["positions"].values()]
     peak = float(j["peak"].max())
     equity = float(j["equity"].iloc[-1])
+    has_impact = "impact_cost" in j.columns
+    impact_total = float(j["impact_cost"].fillna(0).sum()) if has_impact else 0.0
     return {
         "bar_date": str(j["bar_date"].iloc[-1]), "equity": round(equity, 2), "peak": round(peak, 2),
         "drawdown_pct": round((equity / peak - 1) * 100, 3),
-        "total_cost": round(float(j["cost"].sum()), 2), "rows": int(len(j)),
+        "total_cost": round(float(j["cost"].sum()), 2),
+        "impact_cost": round(impact_total, 2),
+        "impact_on": bool(has_impact and impact_total > 0),
+        "rows": int(len(j)),
         "unit_cost": round(unit, 2), "cost_model_bps": int(state.get("ptc", PTC) * 1e4),
         "guard_ok": bool(j["note"].str.contains("paper_only").all()),
         "halted": bool(state.get("halted", False)),
         "positions": sorted(pos, key=lambda p: (-p["exposure"], p["symbol"])),
     }
+
+
+def cpcv_summary() -> dict:
+    """CPCV re-run of the fixed rules (embargo + HLZ + paired vs BH)."""
+    from cpcv_rerun import STRATEGIES, evaluate, load_pinned, portfolio_net_returns
+    frames = load_pinned()
+    bh = portfolio_net_returns(frames, lambda c, r: pd.Series(1.0, index=c.index))
+    rows = []
+    for name, fn in STRATEGIES.items():
+        r = evaluate(name, portfolio_net_returns(frames, fn), baseline=bh)
+        rows.append({"strategy": name, "mean_sr": round(r["mean_sr"], 2),
+                     "t_stat": round(r["t_stat"], 2), "n_positive": r["n_positive"],
+                     "paired_t": round(r["paired_t"], 2), "paired_n_pos": r["paired_n_pos"],
+                     "verdict": r["verdict"]})
+    return {"n_paths": 15, "embargo_bars": 5, "hlz_t": 3.0,
+            "headline": "No rule beats buy&hold across the 15 OOS paths (paired pos <= 3/15). "
+                       "Phase 3 holdout PASS was regime-dependent.",
+            "rows": rows}
 
 
 def quota() -> list[dict]:
@@ -259,10 +284,10 @@ def main() -> None:
     tests = test_status()
     payload = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-        "protocol": summary["protocol"], "lab": lab, "curves": curve_json,
+        "version": QK_VERSION, "protocol": summary["protocol"], "lab": lab, "curves": curve_json,
         "attribution": sorted(legs, key=lambda r: -r["cost_share"]),
         "extension": fresh_extension(), "data_health": data_health(), "paper": paper_book(),
-        "quota": quota(), "tests": tests,
+        "cpcv": cpcv_summary(), "quota": quota(), "tests": tests,
         "costs": {"ptc_bps": int(summary["protocol"]["ptc"] * 1e4),
                   "lag": "signal decided at close, executed next bar"},
         "pass_rule": "PASS = positive total return AND Sharpe above the equal-weight buy & hold AND a shallower max drawdown AND positive in at least 2 of 3 ETFs.",

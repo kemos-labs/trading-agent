@@ -362,6 +362,12 @@ class BacktestEngine:
     stop_loss : float | None, optional
         Fractional equity drawdown from the running peak that triggers
         liquidation and a trading halt (default None = disabled).
+    execution_cost_fn : Callable[[float, int], float] | None, optional
+        Optional impact-aware cost hook ``fn(delta, bar) -> cost in
+        currency`` charged *in addition* to the flat ``ptc``/``ffc``
+        model. Receives the signed exposure delta and the bar index;
+        must be deterministic given the state visible at that bar
+        (no look-ahead). Default None = legacy flat cost only.
     """
 
     def __init__(
@@ -372,6 +378,7 @@ class BacktestEngine:
         ffc: float = 0.0,
         max_exposure: float = 1.0,
         stop_loss: float | None = None,
+        execution_cost_fn: Callable[[float, int], float] | None = None,
     ):
         if capital <= 0:
             raise ValueError("capital must be positive")
@@ -386,6 +393,7 @@ class BacktestEngine:
         self.ffc = float(ffc)
         self.max_exposure = float(max_exposure)
         self.stop_loss = float(stop_loss) if stop_loss is not None else None
+        self.execution_cost_fn = execution_cost_fn
         self.trades: list[dict] = []
         self.stopped = False
         self.stop_bar: int | None = None
@@ -489,6 +497,8 @@ class BacktestEngine:
             delta = 0.0 if i == n - 1 else target - exposure
             if abs(delta) > 1e-12:
                 cost = self.ptc * self.capital * abs(delta) + self.ffc
+                if self.execution_cost_fn is not None:
+                    cost += float(self.execution_cost_fn(delta, i))
                 self.trades.append(
                     {
                         "bar": i,

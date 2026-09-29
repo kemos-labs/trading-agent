@@ -161,6 +161,31 @@ tr.num td{font-family:'JetBrains Mono',monospace;font-size:12.5px}
         <p class="mt-2 text-xs text-[#8B96AB]">Short window ⇒ wide error bars. Read this as 'the rules still behave', not as a new verdict.</p>
       </section>
 
+      <!-- CPCV -->
+      <section class="panel p-4 md:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <h2 class="font-semibold">CPCV re-run — 15 OOS paths</h2>
+            <span class="hint" data-tip="Combinatorial Purged CV (N=6, k=2) on the pinned 2010-2024 bars, embargo 5 bars. Fixed rules: measures Sharpe stability, not selection. The paired column is the honest test — does the rule beat buy&hold on the same path.">?</span>
+          </div>
+          <span class="chip chip-warn">no edge vs BH</span>
+        </div>
+        <div class="mt-3 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-[11px] uppercase tracking-wide text-[#8B96AB] border-b border-[#1E2636]">
+              <tr><th class="text-left py-2 px-2 font-medium">Strategy</th>
+                  <th class="text-right py-2 px-2 font-medium">Mean OOS SR</th>
+                  <th class="text-right py-2 px-2 font-medium">t-stat</th>
+                  <th class="text-right py-2 px-2 font-medium">Pos paths</th>
+                  <th class="text-right py-2 px-2 font-medium">Paired vs BH t</th>
+                  <th class="text-right py-2 px-2 font-medium">Beats BH</th></tr>
+            </thead>
+            <tbody class="divide-y divide-[#1E2636]" id="cpcvBody"></tbody>
+          </table>
+        </div>
+        <p class="mt-2 text-xs text-[#8B96AB]" id="cpcvNote"></p>
+      </section>
+
       <!-- attribution -->
       <section class="panel p-4 md:p-5">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -407,6 +432,21 @@ function renderExt(d){
       <td class="text-right px-2 text-[#F87171]">${pct(r.max_dd_pct)}</td></tr>`).join('');
 }
 
+function renderCpcv(d){
+  const c=d.cpcv;
+  if(!c) return;
+  $('#cpcvBody').innerHTML=c.rows.map(r=>`<tr class="num hover:bg-[#0F1520]">
+      <td class="py-2.5 px-2 text-left">${LABEL[r.strategy]||r.strategy}</td>
+      <td class="text-right px-2 font-semibold">${fmt(r.mean_sr)}</td>
+      <td class="text-right px-2 text-[#34D399]">${fmt(r.t_stat)}</td>
+      <td class="text-right px-2 text-[#8B96AB]">${r.n_positive}/15</td>
+      <td class="text-right px-2 ${r.paired_t<0?'text-[#F87171]':'text-[#34D399]'}">${fmt(r.paired_t)}</td>
+      <td class="text-right px-2 ${r.paired_n_pos<=3?'text-[#F87171]':'text-[#34D399]'}">${r.paired_n_pos}/15</td></tr>`).join('');
+  $('#cpcvNote').textContent=c.headline+' Stable (t>=9.9) is not the same as having an edge.';
+  const best=Math.max(...c.rows.map(r=>r.paired_n_pos));
+  if(best<=3) alertRow('warn',`CPCV: no rule beats buy&hold on more than ${best}/15 OOS paths (paired t all < -3.8). The 2019+ holdout PASS was regime-dependent — treat all legs as diagnostic-only.`);
+}
+
 function renderAttr(d){
   $('#attrBody').innerHTML=d.attribution.map(r=>{
     const thin=r.thin;
@@ -445,7 +485,7 @@ function renderPaper(d){
   $('#engineRows').innerHTML=[
     ['Unit tests',`${d.tests.ran} passed`,d.tests.ok?'chip-ok':'chip-bad','Full suite re-run at page build.'],
     ['Paper guard',p.guard_ok?'intact':'BROKEN',p.guard_ok?'chip-ok':'chip-bad','Every journal row must carry paper_only; execution next bar.'],
-    ['Cost model',`${p.cost_model_bps} bp + one-bar lag`,'chip-ok','Turnover-proportional cost applied at fill time.'],
+    ['Cost model', p.impact_on ? `${p.cost_model_bps} bp + impact layer` : `${p.cost_model_bps} bp + one-bar lag`,'chip-ok', p.impact_on ? `Flat ${p.cost_model_bps} bp floor plus Almgren impact (Θ=${p.impact_cost} total).` : 'Turnover-proportional cost applied at fill time.'],
     ['Data policy','fail-closed','chip-ok','A failed market-data pull raises instead of substituting synthetic bars.'],
   ].map(([a,b,c,h])=>`<div class="flex items-center justify-between text-xs">
       <span class="flex items-center gap-1.5 text-[#C3CBDB]">${a}<span class="hint" data-tip="${h}">?</span></span>
@@ -494,8 +534,8 @@ async function main(){
     const res=await fetch('data/dashboard.json',{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const d=await res.json();
-    $('#genLine').textContent=`built ${d.generated_at.replace('T',' ').slice(0,19)} UTC · ${d.protocol.symbols.join(' / ')} · ${d.protocol.ptc*1e4} bp`;
-    renderKPI(d);renderFeeds(d);renderLab(d);renderExt(d);renderAttr(d);renderPaper(d);renderCurves(d);
+    $('#genLine').textContent=`built ${d.generated_at.replace('T',' ').slice(0,19)} UTC · ${d.protocol.symbols.join(' / ')} · ${d.protocol.ptc*1e4} bp · quantkit ${d.version}`;
+    renderKPI(d);renderFeeds(d);renderLab(d);renderExt(d);renderCpcv(d);renderAttr(d);renderPaper(d);renderCurves(d);
     if(!d.tests.ok) alertRow('bad','Unit tests are failing — do not trust any number on this page until they pass.');
   }catch(err){
     document.body.insertAdjacentHTML('afterbegin',

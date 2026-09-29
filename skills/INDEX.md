@@ -117,7 +117,29 @@ Kelly criterion and fractional-Kelly / volatility-targeting position
 sizing: discrete (f* = p − q/b) and continuous (f* = m/σ²) Kelly, the
 over-betting trap (negative growth past ~2f*), fat-tail/skew cautions,
 and the vol-target approximation for noisy edge estimates.
-Source: Sinclair, Volatility Trading ch8. `skills/kelly-position-sizing/SKILL.md`
+Source: Sinclair, Volatility Trading ch8; corpus addendum (Kelly 1956:
+growth = mutual information, track-take withholding, ignore-odds-for-proportions).
+`skills/kelly-position-sizing/SKILL.md`
+
+## optimal-turnover-liquidity
+Cost-aware turnover target (Baldacci-Benveniste-Ritter 2022): optimal
+steady-state turnover `γ√(φ/γ+1)` and steady-state IR net of quadratic
+costs, from alpha half-life φ, Kyle λ, risk aversion κ; residual-asset
+√N breadth restoration. Implementation: `src/quantkit/portfolio.py::
+optimal_turnover / steady_state_ir` (tests: `TestOptimalTurnover`; checks
+20). Corpus: `portfolioconstruction/Optimal Turnover Liquidity and
+Autocorrelation (OptimalTrading_RitterBaldacciBenveniste_2022.pdf).md`.
+Mechanism: liquidity + information. `skills/optimal-turnover-liquidity/SKILL.md`
+
+## execution-risk
+Engle-Ferstenberg (2006): investment + execution = one mean-variance
+problem with a single λ; TC variance and Cov(TC, gain) in ex-ante Sharpe;
+risk-averse front-loading (three-period closed form); hedge unfinished
+execution with futures; liquidity risk = ES of liquidation cost.
+Implementation: `src/quantkit/execution.py::ef_midpoint` (tests:
+`TestEFMidpoint`; check 21). Corpus: `marketimpact/Execution Risk
+Optimal Trading (optimaltrading_Engle_2006.pdf).md`. Mechanism: liquidity.
+`skills/execution-risk/SKILL.md`
 
 ## binomial-tree-pricing — [consolidated → options-pricing]
 Binomial tree (CRR) option pricing and hedging: build a recombining tree

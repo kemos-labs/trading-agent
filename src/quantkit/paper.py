@@ -15,9 +15,11 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Callable, Dict, Iterable
 
+import numpy as np
 import pandas as pd
 
 from quantkit.data_loader import compute_returns
+from quantkit.execution import impact_almgren
 from quantkit.live import load_store
 from quantkit.strategies import (
     donchian_breakout_position,
@@ -102,8 +104,18 @@ def _save_state(state: PaperState, path: Path) -> None:
 def _journal_path(journal: str | Path) -> Path:
     p = Path(journal)
     p.parent.mkdir(parents=True, exist_ok=True)
+    header = "timestamp,symbol,strategy,bar_date,close,target,exposure,delta,cost,impact_cost,equity,peak,note\n"
     if not p.exists():
-        p.write_text("timestamp,symbol,strategy,bar_date,close,target,exposure,delta,cost,equity,peak,note\n")
+        p.write_text(header)
+    else:
+        # Schema migration: legacy 12-column journals gain impact_cost=0.0
+        # (additive column; old rows are unchanged in meaning).
+        first = p.read_text().splitlines()[0] if p.read_text() else ""
+        if "impact_cost" not in first:
+            lines = p.read_text().splitlines()
+            lines[0] = header.strip()
+            lines[1:] = [ln + ",0.0" for ln in lines[1:]]
+            p.write_text("\n".join(lines) + "\n")
     return p
 
 
@@ -133,6 +145,9 @@ class PaperTrader:
         journal_path: str | Path = DEFAULT_JOURNAL,
         max_drawdown: float | None = None,
         max_position: float | None = None,
+        impact_on: bool = False,
+        horizon_days: float = 1.0,
+        outstanding: float | None = None,
     ):
         if capital <= 0:
             raise ValueError("capital must be positive")
@@ -142,10 +157,15 @@ class PaperTrader:
             raise ValueError("max_drawdown must be in (0,1)")
         if max_position is not None and max_position <= 0:
             raise ValueError("max_position must be >0")
+        if impact_on and horizon_days <= 0:
+            raise ValueError("horizon_days must be >0 when impact_on=True")
         self.capital = float(capital)
         self.ptc = float(ptc)
         self.max_drawdown = float(max_drawdown) if max_drawdown is not None else None
         self.max_position = float(max_position) if max_position is not None else None
+        self.impact_on = bool(impact_on)
+        self.horizon_days = float(horizon_days)
+        self.outstanding = float(outstanding) if outstanding is not None else None
         self.symbols = tuple(s.strip().upper() for s in symbols)
         self.strategies = tuple(strategies)
         for s in self.strategies:
@@ -226,6 +246,21 @@ class PaperTrader:
             close = df["close"]
             rets = compute_returns(close, log=False)
 
+            # Impact layer inputs (fail-closed: no volume -> no impact cost)
+            adv = float(df["volume"].tail(20).mean()) if "volume" in df.columns else 0.0
+            sigma = float(rets.tail(20).std(ddof=1))
+            if self.impact_on and (not np.isfinite(adv) or adv <= 0
+                                  or not np.isfinite(sigma) or sigma <= 0):
+                raise RuntimeError(
+                    f"impact_on=True but {sym} store lacks positive volume/vol "
+                    f"(adv={adv}, sigma={sigma}); fail-closed instead of guessing cost"
+                )
+            if self.impact_on and self.outstanding is None:
+                raise RuntimeError(
+                    f"impact_on=True requires outstanding (shares) for {sym}; "
+                    "pass outstanding=... or impact_on=False"
+                )
+
             bar_date = close.index[-1]
             bar_date_str = bar_date.strftime("%Y-%m-%d")
             bar_close = float(close.iloc[-1])
@@ -251,6 +286,18 @@ class PaperTrader:
                 prev_target = pos.target
                 delta = target - prev_target
                 cost = self.ptc * abs(delta) * capital_per_leg
+                impact_cost = 0.0
+                if self.impact_on and delta != 0:
+                    # delta is in exposure units (0..1.5); convert to shares.
+                    # ptc=0.0: the flat floor is already charged above; the
+                    # impact layer must be additive, not a second floor.
+                    shares = delta * capital_per_leg / bar_close
+                    impact_bps = impact_almgren(
+                        shares, adv, sigma, self.horizon_days, self.outstanding,
+                        ptc=0.0,
+                    )
+                    impact_cost = impact_bps / 1e4 * capital_per_leg
+                    cost += impact_cost
 
                 # Update equity for costs (paper cash)
                 new_equity = self.state.equity - cost
@@ -273,6 +320,7 @@ class PaperTrader:
                         "exposure": new_exposure,
                         "delta": delta,
                         "cost": cost,
+                        "impact_cost": impact_cost,
                         "equity": new_equity,
                         "peak": max(self.state.peak, new_equity),
                         "note": "paper_only; execution next bar" + ("; dry_run" if dry_run else ""),

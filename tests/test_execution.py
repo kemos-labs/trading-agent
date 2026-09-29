@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from quantkit.execution import quoted_spread, effective_spread, roll_spread, variance_ratio, kyle_lambda, amihud_illiquidity
+from quantkit.execution import quoted_spread, effective_spread, roll_spread, variance_ratio, kyle_lambda, amihud_illiquidity, almgren_impact
 
 class TestExecution(unittest.TestCase):
     def test_spreads(self):
@@ -64,3 +64,75 @@ class TestAlmgrenImpact(unittest.TestCase):
             almgren_impact(1e6, 0, 0.1, 0.02, 1e9)
         with self.assertRaises(ValueError):
             almgren_impact(0, 1e7, 0.1, 0.02, 1e9)
+
+
+class TestImpactAlmgren(unittest.TestCase):
+    def test_hand_value(self):
+        from quantkit.execution import impact_almgren
+        # X=1e6, V=1e7, T=0.1, sigma=.02, Theta=1e9, ptc=0:
+        # J = I/2 + .142*.02*1^.6 ≈ 38.33 bps
+        perm, real = almgren_impact(1e6, 1e7, 0.1, 0.02, 1e9)
+        got = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9, ptc=0.0)
+        self.assertAlmostEqual(got, real * 1e4, places=6)
+        self.assertAlmostEqual(got, 38.33, places=2)
+    def test_flat_floor_additive(self):
+        from quantkit.execution import impact_almgren
+        # ptc=0.001 (10 bps) is a floor: total = ptc + |J|
+        got = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9, ptc=0.001)
+        self.assertGreater(got, 10.0)
+        self.assertAlmostEqual(got, 10.0 + 38.33, places=2)
+    def test_sign_symmetry(self):
+        from quantkit.execution import impact_almgren
+        buy = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9)
+        sell = impact_almgren(-1e6, 1e7, 0.02, 0.1, 1e9)
+        self.assertAlmostEqual(buy, sell, places=9)
+    def test_schedule_monotonic(self):
+        from quantkit.execution import impact_almgren
+        fast = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9)
+        slow = impact_almgren(1e6, 1e7, 0.02, 0.4, 1e9)
+        self.assertLess(slow, fast)
+    def test_fail_closed(self):
+        from quantkit.execution import impact_almgren
+        with self.assertRaises(ValueError):
+            impact_almgren(1e6, 0, 0.02, 0.1, 1e9)
+        with self.assertRaises(ValueError):
+            impact_almgren(1e6, 1e7, 0.0, 0.1, 1e9)
+        with self.assertRaises(ValueError):
+            impact_almgren(1e6, 1e7, 0.02, 0.0, 1e9)
+        with self.assertRaises(ValueError):
+            impact_almgren(1e6, 1e7, 0.02, 0.1, 0.0)
+        with self.assertRaises(ValueError):
+            impact_almgren(0, 1e7, 0.02, 0.1, 1e9)
+        # oversize: 30% ADV raises by default, allowed with flag
+        with self.assertRaises(ValueError):
+            impact_almgren(3e6, 1e7, 0.02, 0.1, 1e9)
+        got = impact_almgren(3e6, 1e7, 0.02, 0.1, 1e9, allow_oversize=True)
+        self.assertGreater(got, 0.0)
+
+
+class TestEFMidpoint(unittest.TestCase):
+    def test_risk_neutral_even_pace(self):
+        from quantkit.execution import ef_midpoint
+        x0 = np.array([0.0, 0.0])
+        xT = np.array([10.0, -4.0])
+        Pi = np.zeros((2, 2))
+        T = np.eye(2)  # temporary impact present; lam=0 -> classic even pace
+        Omega = np.eye(2)
+        mid = ef_midpoint(x0, xT, Pi, T, 0.0, Omega)
+        np.testing.assert_allclose(mid, (x0 + xT) / 2, atol=1e-12)
+    def test_risk_averse_front_loads(self):
+        from quantkit.execution import ef_midpoint
+        x0 = np.array([0.0])
+        xT = np.array([10.0])
+        Pi = np.zeros((1, 1))
+        T = np.zeros((1, 1))
+        Omega = np.eye(1)
+        mid = ef_midpoint(x0, xT, Pi, T, 1.0, Omega)
+        # front-loaded: midpoint closer to target than the even pace
+        self.assertGreater(float(mid[0]), 5.0)
+        self.assertLessEqual(float(mid[0]), 10.0)
+    def test_fail_closed(self):
+        from quantkit.execution import ef_midpoint
+        with self.assertRaises(ValueError):
+            ef_midpoint(np.array([0.0]), np.array([1.0]), np.zeros((1, 1)),
+                        np.zeros((1, 1)), -1.0, np.eye(1))

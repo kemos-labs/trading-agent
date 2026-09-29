@@ -145,6 +145,36 @@ def ledoit_wolf_shrinkage(returns: pd.DataFrame) -> tuple[pd.DataFrame, float]:
     return pd.DataFrame(Sstar, index=returns.columns, columns=returns.columns), delta
 
 
+def optimal_turnover(gamma: float, phi: float) -> float:
+    """Baldacci-Benveniste-Ritter (2022) Eq. 20 — optimal steady-state turnover.
+
+    ``turnover = gamma * sqrt(phi/gamma + 1)`` where ``gamma =
+    sqrt(kappa*sigma^2/lambda)`` (trading-speed rate from risk aversion,
+    vol, and Kyle lambda) and ``phi`` is the OU alpha mean-reversion
+    speed (half-life = ln2/phi). Units: fraction of book per unit time.
+    Desk rule: realized turnover far above this = overtrading vs the
+    linear-impact optimum; far below = leaving alpha on the table.
+    """
+    for name, v in [("gamma", gamma), ("phi", phi)]:
+        if not np.isfinite(v) or v <= 0:
+            raise ValueError(f"{name} must be positive finite")
+    return float(gamma * np.sqrt(phi / gamma + 1.0))
+
+
+def steady_state_ir(nu: float, sigma: float, gamma: float, phi: float) -> float:
+    """Baldacci-Benveniste-Ritter (2022) Eq. 23 — steady-state IR net of
+    quadratic costs.
+
+    ``IR = nu/(2*sigma) * sqrt(gamma / (phi*(phi + 2*gamma)))`` where
+    ``nu`` is the OU forecast innovation vol (signal strength), ``sigma``
+    asset vol. Multiplied by sqrt(N) for N independent (residual) assets.
+    """
+    for name, v in [("nu", nu), ("sigma", sigma), ("gamma", gamma), ("phi", phi)]:
+        if not np.isfinite(v) or v <= 0:
+            raise ValueError(f"{name} must be positive finite")
+    return float(nu / (2 * sigma) * np.sqrt(gamma / (phi * (phi + 2 * gamma))))
+
+
 def combine_with_1n(w_soph: pd.Series | np.ndarray, delta: float) -> pd.Series:
     """Tu-Zhou combination: w_c = (1-δ)·(1/N) + δ·w_soph, δ ∈ [0,1].
 

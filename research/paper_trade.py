@@ -40,6 +40,9 @@ def _parse_args():
     p.add_argument("--offline-src", default="data/research/phase3", help="offline cache dir")
     p.add_argument("--dry-run", action="store_true", help="compute and journal with dry_run note, but do not persist state")
     p.add_argument("--reset-state", action="store_true", help="delete state.json before stepping (fresh start)")
+    p.add_argument("--impact-on", action="store_true", help="add Almgren impact layer on top of flat ptc (requires --outstanding)")
+    p.add_argument("--horizon-days", type=float, default=1.0, help="execution horizon in trading days (volume time T)")
+    p.add_argument("--outstanding", type=float, default=None, help="shares outstanding per symbol (required with --impact-on)")
     return p.parse_args()
 
 
@@ -81,6 +84,10 @@ def main():
                 print("Use --offline to replay cached Phase-3 bars.", file=sys.stderr)
                 sys.exit(2)
 
+    if args.impact_on and args.outstanding is None:
+        print("[fatal] --impact-on requires --outstanding (shares outstanding per symbol)", file=sys.stderr)
+        sys.exit(2)
+
     trader = PaperTrader(
         capital=args.capital,
         ptc=args.ptc,
@@ -89,6 +96,9 @@ def main():
         store_dir=store_dir,
         state_path=args.state,
         journal_path=args.journal,
+        impact_on=args.impact_on,
+        horizon_days=args.horizon_days,
+        outstanding=args.outstanding,
     )
     out = trader.step(dry_run=args.dry_run)
     if out.empty:

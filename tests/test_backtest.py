@@ -262,3 +262,33 @@ class TestBacktestEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestBacktestEngineImpact(unittest.TestCase):
+    def test_impact_hook_adds_cost(self):
+        import quantkit.backtest as bt
+        rets = pd.Series([0.0]*10, index=pd.bdate_range("2024-01-01", periods=10))
+        # hook charges a fixed 5.0 per unit delta
+        eng = bt.BacktestEngine(capital=1000.0, ptc=0.0,
+                                execution_cost_fn=lambda delta, bar: 5.0 * abs(delta))
+        out = eng.run(rets, lambda state: 1.0)
+        # one order of 1.0 at bar 0 -> cost 5.0
+        self.assertAlmostEqual(float(out["cost"].sum()), 5.0, places=6)
+        self.assertAlmostEqual(float(out["equity"].iloc[-1]), 995.0, places=6)
+    def test_impact_hook_disabled_by_default(self):
+        import quantkit.backtest as bt
+        rets = pd.Series([0.0]*10, index=pd.bdate_range("2024-01-01", periods=10))
+        eng = bt.BacktestEngine(capital=1000.0, ptc=0.001)
+        out = eng.run(rets, lambda state: 1.0)
+        # flat only: 0.001 * 1000 * 1.0 = 1.0
+        self.assertAlmostEqual(float(out["cost"].sum()), 1.0, places=6)
+    def test_impact_hook_receives_delta_and_bar(self):
+        import quantkit.backtest as bt
+        rets = pd.Series([0.0]*10, index=pd.bdate_range("2024-01-01", periods=10))
+        seen = []
+        def hook(delta, bar):
+            seen.append((delta, bar))
+            return 0.0
+        eng = bt.BacktestEngine(capital=1000.0, ptc=0.0, execution_cost_fn=hook)
+        eng.run(rets, lambda state: 1.0 if state.bar < 3 else 0.0)
+        # orders: bar0 +1, bar3 -1 (final bar skipped)
+        self.assertEqual(seen, [(1.0, 0), (-1.0, 3)])

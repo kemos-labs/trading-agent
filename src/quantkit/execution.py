@@ -28,6 +28,8 @@ __all__ = [
     "almgren_impact",
     "amihud_illiquidity",
     "effective_spread",
+    "impact_almgren",
+    "ef_midpoint",
     "kyle_lambda",
     "quoted_spread",
     "realized_spread",
@@ -139,6 +141,80 @@ def almgren_impact(
     temp = eta * sigma * abs(shares / (adv * duration_voltime)) ** 0.6
     realized = perm / 2 + np.sign(shares) * temp
     return float(perm), float(realized)
+
+
+def impact_almgren(
+    delta: float,
+    adv: float,
+    sigma: float,
+    horizon_days: float,
+    outstanding: float,
+    ptc: float = 0.0,
+    gamma: float = 0.314,
+    eta: float = 0.142,
+    allow_oversize: bool = False,
+) -> float:
+    """Impact-aware cost in bps: flat floor + Almgren realized impact.
+
+    ``delta`` signed shares to trade, ``adv`` average daily volume
+    (shares), ``sigma`` daily vol, ``horizon_days`` execution length in
+    trading days (volume time T = horizon_days), ``outstanding`` shares
+    outstanding (Θ). ``ptc`` is the flat per-unit-turnover cost (e.g.
+    0.001 = 10 bps) charged as a floor — the worst case is paying the
+    spread on the horizon we claim, so the impact layer is *additive*,
+    never a replacement. Returns total cost in basis points (0.01%).
+
+    Fail-closed: raises ValueError on non-positive adv/sigma/horizon/
+    outstanding, and on |delta|/adv > 0.25 (outside the calibrated range)
+    unless ``allow_oversize=True``.
+    """
+    for name, v in [("adv", adv), ("sigma", sigma), ("horizon_days", horizon_days),
+                    ("outstanding", outstanding)]:
+        if not np.isfinite(v) or v <= 0:
+            raise ValueError(f"{name} must be positive finite")
+    if not np.isfinite(delta) or delta == 0:
+        raise ValueError("delta must be nonzero finite")
+    if abs(delta) / adv > 0.25 and not allow_oversize:
+        raise ValueError(
+            f"order {abs(delta)/adv:.1%} ADV exceeds calibrated range (≤25%); "
+            "pass allow_oversize=True to override"
+        )
+    _, realized = almgren_impact(
+        delta, adv, horizon_days, sigma, outstanding, gamma=gamma, eta=eta
+    )
+    total = ptc + abs(realized)
+    return float(max(0.0, total) * 1e4)
+
+
+def ef_midpoint(
+    x0: np.ndarray,
+    xT: np.ndarray,
+    Pi: np.ndarray,
+    T: np.ndarray,
+    lam: float,
+    Omega: np.ndarray,
+) -> np.ndarray:
+    """Engle-Ferstenberg (2006) three-period optimal execution midpoint.
+
+    Closed form for the midpoint holdings between fixed start ``x0`` and
+    target ``xT`` under linear permanent impact ``Pi``, temporary impact
+    ``T``, risk aversion ``lam``, and covariance ``Omega``:
+
+    ``x_t = 1/2 (Pi + 2T + lam*Omega)^-1 [(Pi + 2T) x0 + (Pi + 2T + 2 lam Omega) xT]``
+
+    Risk-neutral (lam=0) gives the classic even pace (midpoint =
+    (x0+xT)/2); risk-averse front-loads (midpoint closer to xT).
+    """
+    x0 = np.atleast_1d(np.asarray(x0, dtype=float))
+    xT = np.atleast_1d(np.asarray(xT, dtype=float))
+    Pi = np.atleast_2d(np.asarray(Pi, dtype=float))
+    T = np.atleast_2d(np.asarray(T, dtype=float))
+    Omega = np.atleast_2d(np.asarray(Omega, dtype=float))
+    if lam < 0:
+        raise ValueError("lam must be >= 0")
+    A = Pi + 2 * T + lam * Omega
+    A_inv = np.linalg.inv(A)
+    return 0.5 * A_inv @ ((Pi + 2 * T) @ x0 + (Pi + 2 * T + 2 * lam * Omega) @ xT)
 
 
 def kyle_lambda(price_changes: pd.Series, signed_volume: pd.Series) -> float:

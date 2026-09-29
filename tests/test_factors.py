@@ -46,11 +46,12 @@ class TestIC(unittest.TestCase):
         # t_stat is inf when std=0 for perfect IC, or 0 if we return 0 — just check hit_rate/mean
         self.assertTrue(res["t_stat"]==0.0 or res["t_stat"]>10)
     def test_no_signal(self):
+        rng = np.random.default_rng(42)  # seeded: 5-asset IC is high-variance
         periods=pd.date_range("2024-01-01", periods=4, freq="B")
         assets=[f"A{i}" for i in range(5)]
         idx=pd.MultiIndex.from_product([periods, assets], names=["period","asset"])
-        factor=pd.Series(np.random.randn(len(idx)), index=idx)
-        fwd=pd.Series(np.random.randn(len(idx)), index=idx)
+        factor=pd.Series(rng.standard_normal(len(idx)), index=idx)
+        fwd=pd.Series(rng.standard_normal(len(idx)), index=idx)
         res=information_coefficient(factor, fwd)
         self.assertEqual(res["n_periods"],4)
         # mean IC near 0, t-stat small

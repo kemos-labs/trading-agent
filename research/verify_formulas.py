@@ -189,6 +189,41 @@ def main():
     assert _L.allows("alphavantage", 25, headroom=1.0), "full-budget allow failed"
     print("PASS quota headroom gate: 21/25 trips at 0.85, passes at 1.0")
 
+    # 19. Impact-aware cost layer (Phase 9 live execution; reuses T2 closed form)
+    from quantkit.execution import impact_almgren
+    # Reference: X=1e6, V=1e7, T=0.1, sigma=.02, Theta=1e9, ptc=0
+    # J = I/2 + .142*.02 = 9.93e-4 + 2.84e-3 = 3.833e-3 -> 38.33 bps
+    got = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9, ptc=0.0)
+    check("impact layer realized", got, 38.33, tol=0.01)
+    # flat floor is additive: ptc=10bps -> total > 10 bps
+    got_floor = impact_almgren(1e6, 1e7, 0.02, 0.1, 1e9, ptc=0.001)
+    check("impact layer floor", got_floor, 10.0 + 38.33, tol=0.01)
+    # sign symmetry
+    check("impact layer sell==buy", impact_almgren(-1e6, 1e7, 0.02, 0.1, 1e9), got, tol=1e-9)
+    # schedule: slower -> smaller J (assert, not check: direction only)
+    slow = impact_almgren(1e6, 1e7, 0.02, 0.4, 1e9)
+    assert slow < got, f"schedule monotonicity failed: {slow} >= {got}"
+    print(f"PASS impact layer schedule: slow {slow:.2f}bps < fast {got:.2f}bps")
+
+    # 20. BBR (2022) optimal turnover + steady-state IR (corpus: portfolioconstruction/
+    # Optimal Turnover Liquidity and Autocorrelation)
+    from quantkit.portfolio import optimal_turnover, steady_state_ir
+    # Desk example: gamma=0.1/day, phi=0.2/day -> 0.1*sqrt(3) ~ 17.3%/day
+    check("BBR optimal turnover", optimal_turnover(0.1, 0.2), 0.1 * math.sqrt(3), tol=1e-12)
+    _ir = steady_state_ir(0.02, 0.01, 0.1, 0.2)
+    check("BBR steady-state IR", _ir,
+          0.02 / (2 * 0.01) * math.sqrt(0.1 / (0.2 * (0.2 + 0.2))), tol=1e-12)
+
+    # 21. Engle-Ferstenberg (2006) three-period midpoint (corpus: marketimpact/
+    # Execution Risk Optimal Trading)
+    from quantkit.execution import ef_midpoint
+    _mid = ef_midpoint(np.array([0.0]), np.array([10.0]), np.zeros((1, 1)),
+                       np.eye(1), 0.0, np.eye(1))
+    check("EF risk-neutral even pace", float(_mid[0]), 5.0, tol=1e-12)
+    _mid2 = ef_midpoint(np.array([0.0]), np.array([10.0]), np.zeros((1, 1)),
+                        np.eye(1), 1.0, np.eye(1))
+    check("EF risk-averse front-load", float(_mid2[0]), 20.0 / 3.0, tol=1e-12)
+
     print("ALL CHECKS PASS")
 
     # Write maintenance report

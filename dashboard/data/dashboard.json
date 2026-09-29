@@ -1,5 +1,6 @@
 {
- "generated_at": "2026-09-26T13:31:06+00:00",
+ "generated_at": "2026-09-29T20:48:26+00:00",
+ "version": "0.9.0",
  "protocol": {
   "symbols": [
    "SPY",
@@ -8560,6 +8561,8 @@
   "peak": 1000000.0,
   "drawdown_pct": -0.039,
   "total_cost": 786.86,
+  "impact_cost": 0.0,
+  "impact_on": false,
   "rows": 12,
   "unit_cost": 166.67,
   "cost_model_bps": 10,
@@ -8616,31 +8619,66 @@
    }
   ]
  },
+ "cpcv": {
+  "n_paths": 15,
+  "embargo_bars": 5,
+  "hlz_t": 3.0,
+  "headline": "No rule beats buy&hold across the 15 OOS paths (paired pos <= 3/15). Phase 3 holdout PASS was regime-dependent.",
+  "rows": [
+   {
+    "strategy": "dual_sma_9_45",
+    "mean_sr": 0.81,
+    "t_stat": 15.26,
+    "n_positive": 15,
+    "paired_t": -3.82,
+    "paired_n_pos": 3,
+    "verdict": "ROBUST"
+   },
+   {
+    "strategy": "vol_mom_252_60_10pct",
+    "mean_sr": 0.85,
+    "t_stat": 9.91,
+    "n_positive": 15,
+    "paired_t": -3.86,
+    "paired_n_pos": 3,
+    "verdict": "ROBUST"
+   },
+   {
+    "strategy": "donchian_50_20",
+    "mean_sr": 0.76,
+    "t_stat": 16.78,
+    "n_positive": 15,
+    "paired_t": -4.82,
+    "paired_n_pos": 1,
+    "verdict": "ROBUST"
+   }
+  ]
+ },
  "quota": [
   {
    "provider": "massive",
-   "used": 3,
+   "used": 0,
    "cap": 200,
-   "remaining": 197,
+   "remaining": 200,
    "label": "Massive (Polygon) \u2014 daily OHLCV, adjusted, 15-min delayed on free tier"
   },
   {
    "provider": "finnhub",
-   "used": 6,
+   "used": 0,
    "cap": 1000,
-   "remaining": 994,
+   "remaining": 1000,
    "label": "Finnhub \u2014 last-print quote only (free tier has no candles)"
   },
   {
    "provider": "alphavantage",
-   "used": 3,
+   "used": 0,
    "cap": 25,
-   "remaining": 22,
+   "remaining": 25,
    "label": "Alpha Vantage \u2014 TIME_SERIES_DAILY fallback (25/day budget)"
   }
  ],
  "tests": {
-  "ran": 190,
+  "ran": 201,
   "ok": true
  },
  "costs": {

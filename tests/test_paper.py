@@ -114,3 +114,52 @@ class TestPaperTrader(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPaperImpact(unittest.TestCase):
+    def test_impact_increases_cost(self):
+        import tempfile
+        from quantkit.paper import PaperTrader
+        with tempfile.TemporaryDirectory() as d:
+            closes = [100 + i for i in range(300)]
+            _write_store("SPY", pd.bdate_range("2024-01-01", periods=300), closes, d)
+            # flat-only
+            t_flat = PaperTrader(symbols=("SPY",), strategies=("dual_sma_9_45",),
+                                 store_dir=d, state_path=Path(d)/"s1.json",
+                                 journal_path=Path(d)/"j1.csv")
+            r_flat = t_flat.step(dry_run=True)
+            # impact-on
+            t_imp = PaperTrader(symbols=("SPY",), strategies=("dual_sma_9_45",),
+                                store_dir=d, state_path=Path(d)/"s2.json",
+                                journal_path=Path(d)/"j2.csv",
+                                impact_on=True, horizon_days=1.0, outstanding=1e9)
+            r_imp = t_imp.step(dry_run=True)
+            self.assertGreater(r_imp["cost"].sum(), r_flat["cost"].sum())
+            self.assertIn("impact_cost", r_imp.columns)
+            self.assertTrue((r_imp["impact_cost"] >= 0).all())
+    def test_impact_fail_closed_no_volume(self):
+        import tempfile
+        from quantkit.paper import PaperTrader
+        with tempfile.TemporaryDirectory() as d:
+            idx = pd.bdate_range("2024-01-01", periods=300)
+            df = pd.DataFrame({"open": [100]*300, "high": [101]*300, "low": [99]*300,
+                               "close": [100 + i for i in range(300)], "volume": [0]*300}, index=idx)
+            df.index.name = "date"
+            df.to_csv(Path(d)/"SPY_1d.csv")
+            t = PaperTrader(symbols=("SPY",), strategies=("dual_sma_9_45",),
+                            store_dir=d, state_path=Path(d)/"s.json",
+                            journal_path=Path(d)/"j.csv",
+                            impact_on=True, horizon_days=1.0, outstanding=1e9)
+            with self.assertRaises(RuntimeError):
+                t.step(dry_run=True)
+    def test_impact_fail_closed_no_outstanding(self):
+        import tempfile
+        from quantkit.paper import PaperTrader
+        with tempfile.TemporaryDirectory() as d:
+            closes = [100 + i for i in range(300)]
+            _write_store("SPY", pd.bdate_range("2024-01-01", periods=300), closes, d)
+            with self.assertRaises(RuntimeError):
+                PaperTrader(symbols=("SPY",), strategies=("dual_sma_9_45",),
+                            store_dir=d, state_path=Path(d)/"s.json",
+                            journal_path=Path(d)/"j.csv",
+                            impact_on=True, horizon_days=1.0, outstanding=None).step(dry_run=True)

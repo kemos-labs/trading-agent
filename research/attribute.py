@@ -43,19 +43,26 @@ def leg_attribution(path: Path) -> dict:
 def journal_check() -> dict:
     # Model: cost = ptc * |delta| * capital_per_leg (delta is a fraction of
     # the leg's capital, not shares). Integrity = proportionality + guard.
+    # When the impact layer is on, cost = flat + impact_cost, so the
+    # proportionality check applies to the flat component only.
     j = pd.read_csv(JOURNAL)
     if j.empty:
         return {"rows": 0, "unit_cost": float("nan"), "rel_spread": 0.0,
-                "ok": True, "guard_ok": True}
+                "ok": True, "guard_ok": True, "impact_rows": 0}
+    has_impact = "impact_cost" in j.columns
+    flat = j["cost"] - j["impact_cost"].fillna(0.0) if has_impact else j["cost"]
+    impact_rows = int((j["impact_cost"].fillna(0.0) != 0).sum()) if has_impact else 0
+    j = j.assign(_flat=flat)
     nz = j[j["delta"].abs() > 0].copy()
-    unit = (nz["cost"] / nz["delta"].abs()).to_numpy(dtype=float)
+    unit = (nz["_flat"] / nz["delta"].abs()).to_numpy(dtype=float)
     med = float(np.median(unit)) if len(unit) else float("nan")
     rel = float((unit.max() - unit.min()) / med) if len(unit) and med else 0.0
     implied_capital = med / MODEL_RATE if med == med else float("nan")
     guard = bool((j["note"].str.contains("paper_only").fillna(False)).all())
     return {"rows": len(j), "unit_cost": med, "rel_spread": rel,
             "implied_capital_per_leg": implied_capital,
-            "ok": rel <= 1e-9 and guard, "guard_ok": guard}
+            "ok": rel <= 1e-9 and guard, "guard_ok": guard,
+            "impact_rows": impact_rows}
 
 
 def main() -> None:
@@ -81,6 +88,7 @@ def main() -> None:
               f"- relative spread of unit cost: {jc['rel_spread']:.2e} (proportionality)",
               f"- implied capital per leg: {jc.get('implied_capital_per_leg', float('nan')):.2f}",
               f"- paper_only guard on every row: {jc['guard_ok']}",
+              f"- impact-layer rows: {jc.get('impact_rows', 0)} (flat component checked for proportionality)",
               f"- verdict: {'PASS' if jc['ok'] else 'FAIL'}"]
     if not jc["ok"]:
         raise SystemExit("journal cost-rate check FAILED")

@@ -76,3 +76,24 @@ class TestEstimationDiscipline(unittest.TestCase):
             check_names=False, check_freq=False)
         with self.assertRaises(ValueError):
             combine_with_1n(w, 1.5)
+
+
+class TestOptimalTurnover(unittest.TestCase):
+    def test_paper_example(self):
+        # BBR 2022 desk example: gamma=0.1/day, phi=0.2/day -> 0.1*sqrt(3) ~ 17.3%/day
+        from quantkit.portfolio import optimal_turnover, steady_state_ir
+        self.assertAlmostEqual(optimal_turnover(0.1, 0.2), 0.1 * math.sqrt(3), places=12)
+    def test_ir_formula(self):
+        from quantkit.portfolio import steady_state_ir
+        # IR = nu/(2 sigma) * sqrt(gamma / (phi (phi + 2 gamma)))
+        got = steady_state_ir(0.02, 0.01, 0.1, 0.2)
+        exp = 0.02 / (2 * 0.01) * math.sqrt(0.1 / (0.2 * (0.2 + 0.2)))
+        self.assertAlmostEqual(got, exp, places=12)
+    def test_fail_closed(self):
+        from quantkit.portfolio import optimal_turnover, steady_state_ir
+        with self.assertRaises(ValueError):
+            optimal_turnover(0.0, 0.2)
+        with self.assertRaises(ValueError):
+            optimal_turnover(0.1, -1.0)
+        with self.assertRaises(ValueError):
+            steady_state_ir(0.0, 0.01, 0.1, 0.2)
